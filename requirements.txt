@@ -1,0 +1,11 @@
+beautifulsoup4
+chromadb
+langchain
+langchain-community
+langchain-openai
+langchainhub
+langchain-text-splitters
+langgraph
+langgraph-sdk
+tavily-python
+tiktoken

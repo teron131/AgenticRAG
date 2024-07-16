@@ -1,7 +1,0 @@
-{
-  "dependencies": ["."],
-  "graphs": {
-    "agent": "./pandas_rag_langgraph/agent.py:graph"
-  },
-  "env": ".env"
-}

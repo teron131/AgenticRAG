@@ -3,29 +3,29 @@ from typing import Annotated, Iterator, Literal, TypedDict
 
 from langchain import hub
 from langchain_community.document_loaders import web_base
-from langchain_community.vectorstores import Chroma
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
+from langchain_core.messages import AIMessage, BaseMessage, convert_to_messages
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import BaseMessage, AIMessage, convert_to_messages
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_core.retrievers import BaseRetriever
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_anthropic import ChatAnthropic
-from langchain_openai import OpenAIEmbeddings
 from langgraph.graph import END, StateGraph, add_messages
 
 MAX_RETRIES = 3
 
 # Index 3 pages from Pandas user guides
 SOURCE_URLS = [
-    'https://pandas.pydata.org/docs/user_guide/indexing.html',
-    'https://pandas.pydata.org/docs/user_guide/groupby.html',
-    'https://pandas.pydata.org/docs/user_guide/merging.html'
+    "https://pandas.pydata.org/docs/user_guide/indexing.html",
+    "https://pandas.pydata.org/docs/user_guide/groupby.html",
+    "https://pandas.pydata.org/docs/user_guide/merging.html",
 ]
 
 NEWLINE_RE = re.compile("\n+")
+
 
 class PandasDocsLoader(web_base.WebBaseLoader):
     def lazy_load(self) -> Iterator[Document]:
@@ -33,21 +33,13 @@ class PandasDocsLoader(web_base.WebBaseLoader):
         for path in self.web_paths:
             soup = self._scrape(path, bs_kwargs=self.bs_kwargs)
             text = soup.get_text(**self.bs_get_text_kwargs)
-            text = NEWLINE_RE.sub("\n", text)     
+            text = NEWLINE_RE.sub("\n", text)
             metadata = web_base._build_metadata(soup, path)
             yield Document(page_content=text, metadata=metadata)
 
 
 def prepare_documents(urls: list[str]) -> list[Document]:
-    text_splitter = RecursiveCharacterTextSplitter(
-        separators=[
-            r"In \[[0-9]+\]",
-            r"\n+",
-            r"\s+"
-        ],
-        is_separator_regex=True,
-        chunk_size=1000
-    )
+    text_splitter = RecursiveCharacterTextSplitter(separators=[r"In \[[0-9]+\]", r"\n+", r"\s+"], is_separator_regex=True, chunk_size=1000)
     docs = [PandasDocsLoader(url).load() for url in urls]
     docs_list = [item for sublist in docs for item in sublist]
     return text_splitter.split_documents(docs_list)
@@ -65,7 +57,7 @@ def get_retriever() -> BaseRetriever:
 
 
 # LLM / Retriever / Tools
-llm = ChatAnthropic(model="claude-3-5-sonnet-20240620", temperature=0)
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
 retriever = get_retriever()
 tavily_search_tool = TavilySearchResults(max_results=3)
 
@@ -77,19 +69,15 @@ RAG_PROMPT: ChatPromptTemplate = hub.pull("rlm/rag-prompt")
 class GradeHallucinations(BaseModel):
     """Binary score for hallucination present in generation answer."""
 
-    binary_score: str = Field(
-        description="Answer is grounded in the facts, 'yes' or 'no'"
-    )
+    binary_score: str = Field(description="Answer is grounded in the facts, 'yes' or 'no'")
 
 
-HALLUCINATION_GRADER_SYSTEM = (
-"""
+HALLUCINATION_GRADER_SYSTEM = """
 You are a grader assessing whether an LLM generation is grounded in / supported by a set of retrieved facts.
 Give a binary score 'yes' or 'no', where 'yes' means that the answer is grounded in / supported by the set of facts.
 
 IF the generation includes code examples, make sure those examples are FULLY present in the set of facts, otherwise always return score 'no'.
 """
-)
 HALLUCINATION_GRADER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", HALLUCINATION_GRADER_SYSTEM),
@@ -101,17 +89,13 @@ HALLUCINATION_GRADER_PROMPT = ChatPromptTemplate.from_messages(
 class GradeAnswer(BaseModel):
     """Binary score to assess answer addresses question."""
 
-    binary_score: str = Field(
-        description="Answer addresses the question, 'yes' or 'no'"
-    )
+    binary_score: str = Field(description="Answer addresses the question, 'yes' or 'no'")
 
 
-ANSWER_GRADER_SYSTEM = (
-"""
+ANSWER_GRADER_SYSTEM = """
 You are a grader assessing whether an answer addresses / resolves a question.
 Give a binary score 'yes' or 'no', where 'yes' means that the answer resolves the question.
 """
-)
 ANSWER_GRADER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", ANSWER_GRADER_SYSTEM),
@@ -120,12 +104,10 @@ ANSWER_GRADER_PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
-QUERY_REWRITER_SYSTEM = (
-"""
+QUERY_REWRITER_SYSTEM = """
 You a question re-writer that converts an input question to a better version that is optimized for vectorstore retrieval.
 Look at the input and try to reason about the underlying semantic intent / meaning.
 """
-)
 QUERY_REWRITER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", QUERY_REWRITER_SYSTEM),
@@ -243,9 +225,7 @@ def grade_generation_v_documents_and_question(state: GraphState, config) -> Lite
 
     print("---CHECK HALLUCINATIONS---")
     hallucination_grader = HALLUCINATION_GRADER_PROMPT | llm.with_structured_output(GradeHallucinations)
-    hallucination_grade: GradeHallucinations = hallucination_grader.invoke(
-        {"documents": documents, "generation": generation}
-    )
+    hallucination_grade: GradeHallucinations = hallucination_grader.invoke({"documents": documents, "generation": generation})
 
     # Check hallucination
     if hallucination_grade.binary_score == "no":
@@ -289,10 +269,7 @@ workflow.add_edge("transform_query", "document_search")
 workflow.add_edge("web_search", "generate")
 workflow.add_edge("finalize_response", END)
 
-workflow.add_conditional_edges(
-    "generate",
-    grade_generation_v_documents_and_question
-)
+workflow.add_conditional_edges("generate", grade_generation_v_documents_and_question)
 
 # Compile
 graph = workflow.compile()
