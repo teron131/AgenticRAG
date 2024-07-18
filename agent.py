@@ -15,6 +15,7 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langgraph.graph import END, StateGraph, add_messages
 
+# Constants
 MAX_RETRIES = 3
 
 # Index 3 pages from Pandas user guides
@@ -27,6 +28,7 @@ SOURCE_URLS = [
 NEWLINE_RE = re.compile("\n+")
 
 
+# Document loading and processing
 class WebDocsLoader(web_base.WebBaseLoader):
     def lazy_load(self) -> Iterator[Document]:
         """Lazy load text from the url(s) in web_path."""
@@ -62,7 +64,6 @@ retriever = get_retriever()
 tavily_search_tool = TavilySearchResults(max_results=3)
 
 # Prompts / data models
-
 RAG_PROMPT: ChatPromptTemplate = hub.pull("rlm/rag-prompt")
 
 
@@ -78,6 +79,7 @@ Give a binary score 'yes' or 'no', where 'yes' means that the answer is grounded
 
 IF the generation includes code examples, make sure those examples are FULLY present in the set of facts, otherwise always return score 'no'.
 """
+
 HALLUCINATION_GRADER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", HALLUCINATION_GRADER_SYSTEM),
@@ -96,6 +98,7 @@ ANSWER_GRADER_SYSTEM = """
 You are a grader assessing whether an answer addresses / resolves a question.
 Give a binary score 'yes' or 'no', where 'yes' means that the answer resolves the question.
 """
+
 ANSWER_GRADER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", ANSWER_GRADER_SYSTEM),
@@ -103,11 +106,11 @@ ANSWER_GRADER_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-
 QUERY_REWRITER_SYSTEM = """
 You a question re-writer that converts an input question to a better version that is optimized for vectorstore retrieval.
 Look at the input and try to reason about the underlying semantic intent / meaning.
 """
+
 QUERY_REWRITER_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", QUERY_REWRITER_SYSTEM),
@@ -119,6 +122,7 @@ QUERY_REWRITER_PROMPT = ChatPromptTemplate.from_messages(
 )
 
 
+# State and config types
 class GraphState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     question: str
@@ -132,6 +136,7 @@ class GraphConfig(TypedDict):
     max_retries: int
 
 
+# Graph nodes
 def document_search(state: GraphState):
     """
     Retrieve documents
@@ -163,7 +168,7 @@ def generate(state: GraphState):
     print("---GENERATE---")
     question = state["question"]
     documents = state["documents"]
-    retries = state["retries"] if state.get("retries") is not None else -1
+    retries = state.get("retries", -1)
 
     rag_chain = RAG_PROMPT | llm | StrOutputParser()
     generation = rag_chain.invoke({"context": documents, "question": question})
@@ -199,9 +204,7 @@ def web_search(state: GraphState):
     return {"documents": documents, "web_fallback": False}
 
 
-### Edges
-
-
+# Edge function
 def grade_generation_v_documents_and_question(state: GraphState, config) -> Literal["generate", "transform_query", "web_search", "finalize_response"]:
     """
     Determines whether the generation is grounded in the document and answers question.
@@ -216,7 +219,7 @@ def grade_generation_v_documents_and_question(state: GraphState, config) -> Lite
     documents = state["documents"]
     generation = state["candidate_answer"]
     web_fallback = state["web_fallback"]
-    retries = state["retries"] if state.get("retries") is not None else -1
+    retries = state.get("retries", -1)
     max_retries = config.get("configurable", {}).get("max_retries", MAX_RETRIES)
 
     # this means we've already gone through web fallback and can return to the user
@@ -252,7 +255,6 @@ def finalize_response(state: GraphState):
 
 
 # Define graph
-
 workflow = StateGraph(GraphState, config_schema=GraphConfig)
 
 # Define the nodes
