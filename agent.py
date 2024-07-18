@@ -27,7 +27,7 @@ SOURCE_URLS = [
 NEWLINE_RE = re.compile("\n+")
 
 
-class PandasDocsLoader(web_base.WebBaseLoader):
+class WebDocsLoader(web_base.WebBaseLoader):
     def lazy_load(self) -> Iterator[Document]:
         """Lazy load text from the url(s) in web_path."""
         for path in self.web_paths:
@@ -40,7 +40,7 @@ class PandasDocsLoader(web_base.WebBaseLoader):
 
 def prepare_documents(urls: list[str]) -> list[Document]:
     text_splitter = RecursiveCharacterTextSplitter(separators=[r"In \[[0-9]+\]", r"\n+", r"\s+"], is_separator_regex=True, chunk_size=1000)
-    docs = [PandasDocsLoader(url).load() for url in urls]
+    docs = [WebDocsLoader(url).load() for url in urls]
     docs_list = [item for sublist in docs for item in sublist]
     return text_splitter.split_documents(docs_list)
 

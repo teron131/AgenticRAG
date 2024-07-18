@@ -3,8 +3,8 @@ chromadb
 langchain
 langchain-community
 langchain-openai
-langchainhub
 langchain-text-splitters
+langchainhub
 langgraph
 langgraph-sdk
 tavily-python
