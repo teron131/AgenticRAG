@@ -59,7 +59,7 @@ def get_retriever() -> BaseRetriever:
 
 
 # LLM / Retriever / Tools
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 retriever = get_retriever()
 tavily_search_tool = TavilySearchResults(max_results=3)
 

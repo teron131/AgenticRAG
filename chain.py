@@ -4,7 +4,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
 # LLM setup
-model_name = "gpt-4o"
+model_name = "gpt-4o-mini"
 metadata = "CRAG, gpt-4o"
 llm = ChatOpenAI(model_name=model_name, temperature=0)
 
